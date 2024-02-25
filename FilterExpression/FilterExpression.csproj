@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Authors>Phuc_Nguyen_6554</Authors>
+    <Description>Translate from string into an Expression Tree</Description>
+    <PackageProjectUrl>https://github.com/phucthanh6554/DotNet-FilterExpression</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/phucthanh6554/DotNet-FilterExpression</RepositoryUrl>
+    <Version>$(VersionPrefix)</Version>
+    <AssemblyVersion>1.1</AssemblyVersion>
+    <FileVersion>1.1</FileVersion>
+	<PackageVersion>1.1.0</PackageVersion>
+  </PropertyGroup>
+
+</Project>
