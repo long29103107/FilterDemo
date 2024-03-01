@@ -1,12 +1,15 @@
-﻿using FilterExpression.Directive.Implement;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using FilterExpression.Directive;
+using FilterExpression.Directive.Implement;
+using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace FilterExpression;
+public class Operator
+{
+    public const string And = "&";
+    public const string Or = "|";
+}
+
 public partial class FilterService
 {
 
@@ -67,7 +70,7 @@ public partial class FilterService
     //    throw new Exception($"Convert value `{value}` to type `{type}` is not supported yet.");
     //}
 
-    public void _ParseFieldFilter(Type type)
+    public void _ParseFieldFilter(ref ParameterExpression pe, Type type)
     {
         foreach(var item in _conditionFilters)
         {
@@ -111,55 +114,149 @@ public partial class FilterService
 
             thirdValue = thirdValue.Replace("`", "").Trim();
 
-            var fieldFilter = new FieldFilter()
+            Expression? body = null;
+
+            MemberExpression me = Expression.Property(pe, firstValue);
+
+            var typeProperty = _ParseStringToType(valueTypeString);
+
+            ConstantExpression constant = Expression.Constant(_ParseValue(thirdValue, typeProperty), typeProperty);
+
+            var expressionName = GetGenerateExpression(me, constant, secondValue ?? string.Empty);
+
+            if (body == null || string.IsNullOrEmpty(secondValue))
             {
-                FieldName = firstValue,
-                Operator = secondValue,
-                Value = thirdValue,
-                Exp = item.Value,
-                Key = item.Key,
-                ValueTypeString = valueTypeString
+                body = expressionName;
+            }
+            else
+            {
+                if (secondValue == Operator.And)
+                    body = Expression.And(body, expressionName);
+                else if (secondValue == Operator.Or)
+                    body = Expression.Or(body, expressionName);
+            }
+
+            var fieldFilter = new ExpressionFilter()
+            {
+                ParaExp = pe,
+                PropertyName = firstValue,
+                StrValue = thirdValue,
+                StrType = valueTypeString,
+                Expression = body,
+                Key = item.Key
             };
 
             _fieldFilters.Add(fieldFilter);
         }
     }
-}
 
-public class FieldFilter
-{
-    public string Key { get; set; }
-    public string FieldName { get; set; }
-    public string Operator { get; set; }
-    public string Value { get; set; }
-    public string ValueTypeString { get; set; }
-    public string Exp { get; set; }
-    public Type ValueType
+    public static Expression GetGenerateExpression(MemberExpression me, ConstantExpression constant, string strOperator)
     {
-        get
-        {
-            if (ValueTypeString == "string")
-            {
-                return typeof(string);
-            }
-            else if (ValueTypeString == "int")
-            {
-                return typeof(int);
-            }
-            else if (ValueTypeString == "decimal")
-            {
-                return typeof(decimal);
-            }
-            else if (ValueTypeString == "datetime")
-            {
-                return typeof(DateTime);
-            }
-            else if (!string.IsNullOrEmpty(ValueTypeString))
-            {
-                throw new Exception($"Value Type `{ValueTypeString}` is not supported yet.");
-            }
+        IFilterDirective filterDirective = null;
 
-            return null;
-        }
+        if (strOperator == "contains")
+            filterDirective = new ContainsDirective();
+        else if (strOperator == "eq")
+            filterDirective = new EqualDirective();
+        else if (strOperator == "gt")
+            filterDirective = new GreaterThanDirective();
+        else if (strOperator == "ge")
+            filterDirective = new GreaterThanOrEqualDirective();
+        else if (strOperator == "in")
+            filterDirective = new InArrayDirective();
+        else if (strOperator == "lt")
+            filterDirective = new LessThanDirective();
+        else if (strOperator == "le")
+            filterDirective = new LessThanOrEqualDirective();
+        else if (strOperator == "ne")
+            filterDirective = new NotEqualDirective();
+        else if (strOperator == "startswith")
+            filterDirective = new StartsWithDirective();
+
+        return filterDirective.GenerateExpression(ref me, constant);
     }
+
+    private static Type _ParseStringToType(string strType)
+    {
+        if (strType == "string")
+        {
+            return typeof(string);
+        }
+        else if (strType == "int")
+        {
+            return typeof(int);
+        }
+        else if (strType == "decimal")
+        {
+            return typeof(decimal);
+        }
+        else if (strType == "datetime")
+        {
+            return typeof(DateTime);
+        }
+        else if (!string.IsNullOrEmpty(strType))
+        {
+            throw new Exception($"Value Type `{strType}` is not supported yet.");
+        }
+
+        return null;
+    }
+
+    private static object _ParseValue(string value, Type type)
+    {
+        var v = value.Trim();
+
+        if (type == typeof(string)) return v;
+
+        if (type == typeof(DateTime)) return DateTime.Parse(v);
+        //if (type == typeof(DateTime?)) return v.ParseNullableDateTime();
+
+        if (type == typeof(int)) return int.Parse(v);
+        //if (type == typeof(int?)) return v.ParseNullableInt();
+
+        if (type == typeof(decimal)) return decimal.Parse(v);
+        //if (type == typeof(decimal?)) return v.ParseNullableDecimal();
+
+        //if (type == typeof(bool)) return filterSetting.IsNot ? !bool.Parse(v) : bool.Parse(v);
+        //if (type == typeof(bool?)) return filterSetting.IsNot ? !v.ParseNullableBool() : v.ParseNullableBool();
+
+        throw new Exception($"Convert value `{value}` to type `{type}` is not supported yet.");
+    }
+
+//public class FieldFilter
+//{
+//    public string Key { get; set; }
+//    public string FieldName { get; set; }
+//    public string Operator { get; set; }
+//    public string Value { get; set; }
+//    public string ValueTypeString { get; set; }
+//    public string Exp { get; set; }
+//    public Type ValueType
+//    {
+//        get
+//        {
+//            if (ValueTypeString == "string")
+//            {
+//                return typeof(string);
+//            }
+//            else if (ValueTypeString == "int")
+//            {
+//                return typeof(int);
+//            }
+//            else if (ValueTypeString == "decimal")
+//            {
+//                return typeof(decimal);
+//            }
+//            else if (ValueTypeString == "datetime")
+//            {
+//                return typeof(DateTime);
+//            }
+//            else if (!string.IsNullOrEmpty(ValueTypeString))
+//            {
+//                throw new Exception($"Value Type `{ValueTypeString}` is not supported yet.");
+//            }
+
+//            return null;
+//        }
+//    }
 }
