@@ -8,6 +8,7 @@ public class Operator
 {
     public const string And = "&";
     public const string Or = "|";
+    public const string Not = "!";
 }
 
 public partial class FilterService

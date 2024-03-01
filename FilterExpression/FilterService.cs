@@ -1,5 +1,6 @@
 ﻿using FilterExpression.Extension;
 using FilterExpression.Extensions;
+using System;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
@@ -35,6 +36,7 @@ namespace FilterExpression
         public int Index { get; set; }
         public string Key { get; set; }
         public string Value { get; set; }
+        public Expression Expression { get; set; } = null;
     }
 
     public partial class FilterService
@@ -47,92 +49,313 @@ namespace FilterExpression
 
         public Expression<Func<T, bool>> GetExpressionFilterRecursive<T>(ref ParameterExpression pe)
         {
-            var groupMaster = _groupFilters.OrderByDescending(x => x.Key).FirstOrDefault();
+            _AddExpressionToGroup();
 
-            if (groupMaster == null)
-                return null;
-
-            Expression body = null;
-
-            body = GetExpressionRecursive(groupMaster, body);
+            Expression body = _groupFilters.OrderByDescending(x => x.Index)
+                .FirstOrDefault()?.Expression ?? null;
 
             return body == null ? null : Expression.Lambda<Func<T, bool>>(body, pe);
         }
 
-        private Expression GetExpressionRecursive(GroupFilter group, Expression body = null)
+        private void _AddExpressionToGroup()
         {
-            var pattern = @"\[group\d\]";
+            var groupPattern = @"\[group\d\]";
+            var conditionPattern = @"\[condition\d\]";
 
-            var listSplit = Regex.Matches(group.Value, pattern);
-
-            Expression tmpExp = null;
-
-            if (listSplit.Any())
+            foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
             {
-                foreach (Match splitGroup in listSplit)
+                var groupList = Regex.Matches(group.Value, groupPattern);
+                var conditionList = Regex.Matches(group.Value, conditionPattern);
+
+                if (conditionList.Any() && groupList.Any())
                 {
-                    var index = group.Value.IndexOf(splitGroup.Value);
-
-                    var groupItem = _groupFilters.Where(x => x.Key == splitGroup.Value).FirstOrDefault();
-
-                    tmpExp = GetExpressionRecursive(groupItem, body);
+                    group.Expression = _GetExpressionOfConditionAndGroup(group);
+                }
+                else if (conditionList.Any())
+                {
+                    group.Expression = _GetExpressionOfCondition(group);
+                }
+                else if (groupList.Any())
+                {
+                    group.Expression = _GetExpressionOfGroup(group);
                 }
             }
-            else
-            {
-                var conditionPattern = @"\[condition\d\]";
+        }
 
-                var valueString = group.Value;
+        private Expression _GetExpressionOfConditionAndGroup(GroupFilter group)
+        {
+            Expression result = null;
 
-                var mapFilters = Regex.Matches(group.Value, conditionPattern)
-                    .Select(x => x as Match)
-                    .Select(x => new ExpressionMapFilter()
-                    {
-                        Key = x.Value,
-                        StartIndex = x.Index,
-                        EndIndex = (x.Index + x.Value.Length - 1),
-                    })
-                    .ToList();
+            var groupPattern = @"\[group\d\]";
+            var conditionPattern = @"\[condition\d\]";
 
-                if (mapFilters.IsNullOrEmpty())
+            var valueString = group.Value;
+
+            var mapGroupFilters = Regex.Matches(group.Value, groupPattern)
+                .Select(x => x as Match)
+                .Select(x => new ExpressionMapFilter()
                 {
-                    return null;
+                    Key = x.Value,
+                    StartIndex = x.Index,
+                    EndIndex = (x.Index + x.Value.Length - 1),
+                })
+                .ToList();
+
+            var mapConditionFilters = Regex.Matches(group.Value, conditionPattern)
+                .Select(x => x as Match)
+                .Select(x => new ExpressionMapFilter()
+                {
+                    Key = x.Value,
+                    StartIndex = x.Index,
+                    EndIndex = (x.Index + x.Value.Length - 1),
+                })
+                .ToList();
+
+            if (mapGroupFilters.IsNullOrEmpty() || mapConditionFilters.IsNullOrEmpty())
+            {
+                return null;
+            }
+
+            //Get group first
+            foreach(var item in mapGroupFilters)
+            {
+                var groupFilter = _groupFilters.FirstOrDefault(x => x.Key == item.Key);
+
+                var tempExp =  _GetExpressionOfGroup(groupFilter);
+
+                var index = valueString.IndexOf(item.Key);
+
+                if(index - 1 >= 0)
+                {
+                    if (valueString[index - 1].ToString().Equals("!"))
+                    {
+                        tempExp = Expression.Not(tempExp);
+                    }
+                    else if (valueString[index - 1].ToString().Equals("|"))
+                    {
+                        tempExp = result == null ? tempExp : Expression.Or(result, tempExp);
+                    }
+                    else if (valueString[index - 1].ToString().Equals("&"))
+                    {
+                        tempExp = result == null ? tempExp : Expression.And(result, tempExp);
+                    }
                 }
 
-                for(var i = 0;  i < valueString.Length; i++) 
+                result = tempExp;
+            }
+
+            //Get condition 
+            foreach (var item in mapConditionFilters)
+            {
+                var conditionFilter = _fieldFilters.FirstOrDefault(x => x.Key == item.Key);
+
+                var tempExp = conditionFilter.Expression;
+
+                var index = valueString.IndexOf(item.Key);
+
+                if (index - 1 >= 0)
                 {
-                    if (valueString[i] == '(' || valueString[i] == ')' || !mapFilters.Any(x => x.StartIndex == i))
-                        continue;
-
-                    var mapFilter = mapFilters.FirstOrDefault(x => x.StartIndex == i);
-
-                    var fieldFilter = _fieldFilters.FirstOrDefault(x => x.Key == mapFilter.Key);
-
-                    if(body == null)
+                    if (valueString[index - 1].ToString().Equals("!"))
                     {
-                        body = fieldFilter.Expression;
+                        tempExp = Expression.Not(tempExp);
                     }
-                    else
+                    else if (valueString[index - 1].ToString().Equals("|"))
                     {
-                        if (mapFilter.StartIndex - 1 > 0)
-                        {
-                            var compareOperator = valueString[mapFilter.StartIndex - 1];
+                        tempExp = result == null ? tempExp : Expression.Or(result, tempExp);
+                    }
+                    else if (valueString[index - 1].ToString().Equals("&"))
+                    {
+                        tempExp = result == null ? tempExp : Expression.And(result, tempExp);
+                    }
+                }
 
-                            if (compareOperator.ToString().Equals(Operator.And))
-                            {
-                                body = Expression.And(body, fieldFilter.Expression);
-                            }
-                            else if (compareOperator.ToString().Equals(Operator.Or))
-                            {
-                                body = Expression.Or(body, fieldFilter.Expression);
-                            }
+                result = tempExp;
+            }
+
+            return result;
+        }
+
+        private Expression _GetExpressionOfGroup(GroupFilter group)
+        {
+            Expression result = null;
+
+            var groupPattern = @"\[group\d\]";
+
+            var valueString = group.Value;
+
+            var mapFilters = Regex.Matches(group.Value, groupPattern)
+                .Select(x => x as Match)
+                .Select(x => new ExpressionMapFilter()
+                {
+                    Key = x.Value,
+                    StartIndex = x.Index,
+                    EndIndex = (x.Index + x.Value.Length - 1),
+                })
+                .ToList();
+
+            if (mapFilters.IsNullOrEmpty())
+            {
+                return null;
+            }
+
+            for (var i = 0; i < valueString.Length; i++)
+            {
+                if (valueString[i] == '(' || valueString[i] == ')' || !mapFilters.Any(x => x.StartIndex == i))
+                    continue;
+
+                var mapFilter = mapFilters.FirstOrDefault(x => x.StartIndex == i);
+
+                var fieldFilter = _groupFilters.FirstOrDefault(x => x.Key == mapFilter.Key);
+
+                result = fieldFilter.Expression;
+
+                var index = valueString.IndexOf(mapFilter.Key);
+
+                if(index - 1 >= 0 && valueString[index - 1].ToString().Equals("!"))
+                {
+                    result = Expression.Not(result);
+                }
+            }
+
+            return result;
+        }
+
+        private Expression _GetExpressionOfCondition(GroupFilter group)
+        {
+            Expression result = null;
+
+            var conditionPattern = @"\[condition\d\]";
+
+            var valueString = group.Value;
+
+            var mapFilters = Regex.Matches(group.Value, conditionPattern)
+                .Select(x => x as Match)
+                .Select(x => new ExpressionMapFilter()
+                {
+                    Key = x.Value,
+                    StartIndex = x.Index,
+                    EndIndex = (x.Index + x.Value.Length - 1),
+                })
+                .ToList();
+
+            if (mapFilters.IsNullOrEmpty())
+            {
+                return null;
+            }
+
+            for (var i = 0; i < valueString.Length; i++)
+            {
+                if (valueString[i] == '(' || valueString[i] == ')' || !mapFilters.Any(x => x.StartIndex == i))
+                    continue;
+
+                var mapFilter = mapFilters.FirstOrDefault(x => x.StartIndex == i);
+
+                var fieldFilter = _fieldFilters.FirstOrDefault(x => x.Key == mapFilter.Key);
+
+                if (result == null)
+                {
+                    result = fieldFilter.Expression;
+                }
+                else
+                {
+                    if (mapFilter.StartIndex - 1 > 0)
+                    {
+                        var compareOperator = valueString[mapFilter.StartIndex - 1];
+
+                        if (compareOperator.ToString().Equals(Operator.And))
+                        {
+                            result = Expression.And(result, fieldFilter.Expression);
+                        }
+                        else if (compareOperator.ToString().Equals(Operator.Or))
+                        {
+                            result = Expression.Or(result, fieldFilter.Expression);
                         }
                     }
                 }
             }
 
-            return listSplit.Any() ? tmpExp : body;
+            return result;
         }
+
+        //private Expression GetExpressionRecursive(GroupFilter group, Expression body = null)
+        //{
+        //    var pattern = @"\[group\d\]";
+
+        //    var listSplit = Regex.Matches(group.Value, pattern);
+
+        //    Expression tmpExp = null;
+
+        //    if (listSplit.Any())
+        //    {
+        //        foreach (Match splitGroup in listSplit)
+        //        {
+        //            var index = group.Value.IndexOf(splitGroup.Value);
+
+        //            var groupItem = _groupFilters.Where(x => x.Key == splitGroup.Value).FirstOrDefault();
+
+        //            tmpExp = GetExpressionRecursive(groupItem, body);
+
+        //            if(index - 1 >= 0 && groupItem.Value[index - 1].ToString().Equals("!"))
+        //            {
+        //                tmpExp = Expression.Not(tmpExp);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        var conditionPattern = @"\[condition\d\]";
+
+        //        var valueString = group.Value;
+
+        //        var mapFilters = Regex.Matches(group.Value, conditionPattern)
+        //            .Select(x => x as Match)
+        //            .Select(x => new ExpressionMapFilter()
+        //            {
+        //                Key = x.Value,
+        //                StartIndex = x.Index,
+        //                EndIndex = (x.Index + x.Value.Length - 1),
+        //            })
+        //            .ToList();
+
+        //        if (mapFilters.IsNullOrEmpty())
+        //        {
+        //            return null;
+        //        }
+
+        //        for(var i = 0;  i < valueString.Length; i++) 
+        //        {
+        //            if (valueString[i] == '(' || valueString[i] == ')' || !mapFilters.Any(x => x.StartIndex == i))
+        //                continue;
+
+        //            var mapFilter = mapFilters.FirstOrDefault(x => x.StartIndex == i);
+
+        //            var fieldFilter = _fieldFilters.FirstOrDefault(x => x.Key == mapFilter.Key);
+
+        //            if(body == null)
+        //            {
+        //                body = fieldFilter.Expression;
+        //            }
+        //            else
+        //            {
+        //                if (mapFilter.StartIndex - 1 > 0)
+        //                {
+        //                    var compareOperator = valueString[mapFilter.StartIndex - 1];
+
+        //                    if (compareOperator.ToString().Equals(Operator.And))
+        //                    {
+        //                        body = Expression.And(body, fieldFilter.Expression);
+        //                    }
+        //                    else if (compareOperator.ToString().Equals(Operator.Or))
+        //                    {
+        //                        body = Expression.Or(body, fieldFilter.Expression);
+        //                    }
+        //                }
+        //            }
+        //        }
+        //    }
+
+        //    return listSplit.Any() ? tmpExp : body;
+        //}
 
         public Expression<Func<T, bool>> Filter<T>(string fe)
         {
@@ -157,8 +380,6 @@ namespace FilterExpression
                 _ParseFieldFilter(ref pe, typeOfGeneric);
 
                 result = GetExpressionFilterRecursive<T>(ref pe);
-
-                var aa = 1;
             }
             catch (Exception)
             {
@@ -323,91 +544,6 @@ namespace FilterExpression
                 fe = fe.Replace(filter.Value, filter.Key);
             }
         }
-
-        //private void _ConditionFilterExpression(string fe)
-        //{
-        //    string tempFe = fe;
-
-        //    //if (!tempFe.Contains(")") || !tempFe.Contains("("))
-        //    //{
-        //    //    _groupFilters.Add(new GroupFilter
-        //    //    {
-        //    //        Index = _groupKey,
-        //    //        Key = $"group{_groupKey++}",
-        //    //        Value = fe
-        //    //    });
-
-        //    //    return;
-        //    //}
-
-        //    //index of `(`
-        //    var indexOfSharp = 0;
-        //    var inSharp = 0;
-
-        //    for (var i = 0; i < tempFe.Length; i++)
-        //    {
-        //        if (indexOfSharp > i) continue;
-
-        //        if (tempFe[i].ToString().Equals("!"))
-        //        {
-        //            inSharp = i;
-        //        }
-        //        else if (tempFe[i].ToString().Equals("("))
-        //        {
-        //            indexOfSharp = i;
-        //        }
-        //        else if (tempFe[i].ToString().Equals(")"))
-        //        {
-        //            int length = (i - indexOfSharp) + 1;
-
-        //            string tempFeFilter = tempFe.Substring(indexOfSharp, length);
-
-        //            if (inSharp != 0 && Math.Abs(indexOfSharp - inSharp) == 1)
-        //            {
-        //                tempFeFilter = tempFe.Substring(inSharp, i);
-        //            }
-
-        //            //if (tempFeFilter.Contains("condition"))
-        //            //{
-        //            //    _groupFilters.Add(new GroupFilter
-        //            //    {
-        //            //        Index = _groupKey,
-        //            //        Key = $"[group{_groupKey++}]",
-        //            //        Value = tempFeFilter
-        //            //    });
-        //            //}
-        //            //else
-        //            //{
-        //            if (!tempFeFilter.Contains(tempFe))
-        //            {
-        //                var key = $"[condition{_conditionKey++}]";
-        //                _conditionFilters.Add(new ConditionFilter
-        //                {
-        //                    Index = _conditionKey,
-        //                    Key = key,
-        //                    Value = tempFeFilter
-        //                });
-
-        //                indexOfSharp += length;
-        //                tempFe = tempFe.Replace(tempFeFilter, key);
-        //            }
-        //            //}
-        //        }
-        //    }
-
-        //    foreach (var group in _groupFilters)
-        //    {
-        //        tempFe = tempFe.Replace(group.Value, group.Key);
-        //    }
-
-        //    //foreach (var group in _conditionFilters)
-        //    //{
-        //    //    tempFe = tempFe.Replace(group.Value, group.Key);
-        //    //}
-
-        //    _ConditionFilterExpression(tempFe);
-        //}
-
 
         private void _ValidateFilterExpression(string fe)
         {

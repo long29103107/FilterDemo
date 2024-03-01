@@ -19,7 +19,7 @@ public class CustomerController : ControllerBase
         var filteredList = new List<Customer>();
         try
         {
-            filteredList = list.Filter("!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))");
+            filteredList = list.Filter("!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))|(Name eq `3`)");
         }
         catch (Exception ex)
         {
