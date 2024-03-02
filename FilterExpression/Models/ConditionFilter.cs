@@ -1,5 +1,5 @@
 ﻿namespace FilterExpression.Models;
-public class ConditionFilter : BaseFilter
+public sealed class ConditionFilter : BaseFilter
 {
     
 }

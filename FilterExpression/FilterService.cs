@@ -549,22 +549,24 @@ public partial class FilterService
             {
                 result = fieldFilter.Expression;
             }
-
-            var index = valueString.IndexOf(mapFilter.Key);
-
-            var compareOperator = valueString[mapFilter.StartIndex - 1];
-
-            if (compareOperator.ToString().Equals(Constants.Operator.Not))
+            else
             {
-                result = Expression.Not(result);
-            }
-            else if (compareOperator.ToString().Equals(Constants.Operator.And))
-            {
-                result = Expression.And(result, fieldFilter.Expression);
-            }
-            else if (compareOperator.ToString().Equals(Constants.Operator.Or))
-            {
-                result = Expression.Or(result, fieldFilter.Expression);
+                var index = valueString.IndexOf(mapFilter.Key);
+
+                var compareOperator = valueString[mapFilter.StartIndex - 1];
+
+                if (compareOperator.ToString().Equals(Constants.Operator.Not))
+                {
+                    result = Expression.Not(result);
+                }
+                else if (compareOperator.ToString().Equals(Constants.Operator.And))
+                {
+                    result = Expression.And(result, fieldFilter.Expression);
+                }
+                else if (compareOperator.ToString().Equals(Constants.Operator.Or))
+                {
+                    result = Expression.Or(result, fieldFilter.Expression);
+                }
             }
         }
 
