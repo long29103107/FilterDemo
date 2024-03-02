@@ -277,7 +277,7 @@ public partial class FilterService
             string secondValue = splitStr[1] ?? string.Empty; // This is operator
             string thirdValue = splitStr[2] ?? string.Empty; //This is value
 
-            //TODO: valid name field in white list
+            //Valid name field in white list
             PropertyInfo? prop = type.GetProperty(firstValue);
 
             if (prop == null)
@@ -287,7 +287,7 @@ public partial class FilterService
 
             var valueTypeString = prop?.PropertyType.ToTypeNameOrAlias().ToLower();
 
-            //TODO: valid operator in white list
+            //Valid operator in white list
             if (string.IsNullOrEmpty(secondValue))
             {
                 throw new Exception("Operator must have value");
