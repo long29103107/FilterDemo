@@ -53,7 +53,6 @@ public partial class FilterService
         finally
         {
             _key = 0;
-            _key = 0;
             _groupFilters.Clear();
             _conditionFilters.Clear();
         }
