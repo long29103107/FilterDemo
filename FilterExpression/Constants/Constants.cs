@@ -2,6 +2,10 @@
 public static class PatternString
 {
     public const string ValidCharacter = "^[A-Za-z0-9_.]+$";
+    public const string GroupNot = @"\!\[group\d\]";
+    public const string ConditionNot = @"\!\[condition\d\]";
+    public const string Group = @"\[group\d\]";
+    public const string Condition = @"\[condition\d\]";
 }
 
 public static class Operator

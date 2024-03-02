@@ -12,7 +12,6 @@ namespace FilterExpression;
 
 public partial class FilterService
 {
-
     public Expression<Func<T, bool>> Filter<T>(string fe)
     {
         var tempFe = fe;
@@ -67,7 +66,7 @@ public partial class FilterService
     {
         List<string> feString = fe.Select(x => x.ToString()).ToList();
 
-        var invalidChar = feString.Where(x => !Regex.IsMatch(x.Trim(), "^[A-Za-z0-9_.]+$") 
+        var invalidChar = feString.Where(x => !Regex.IsMatch(x.Trim(), Constants.PatternString.ValidCharacter)
                 && !_validChar.Contains(x.Trim()))
             .Distinct()
             .ToList();
@@ -147,7 +146,6 @@ public partial class FilterService
     private void _GroupFilterExpression(ref string fe)
     {
         var indexOfSharp = 0;
-        var pattern = @"\!\[group\d\]";
 
         var charNeedToGroup = new List<string>() { "!", "|", "&" };
 
@@ -201,9 +199,9 @@ public partial class FilterService
                 }
             }
         }
-        else if (Regex.Matches(fe, pattern).Any())
+        else if (Regex.Matches(fe, Constants.PatternString.GroupNot).Any())
         {
-            var groups = Regex.Matches(fe, pattern).Select(x => x as Match).ToList();
+            var groups = Regex.Matches(fe, Constants.PatternString.GroupNot).Select(x => x as Match).ToList();
 
             foreach (var group in groups)
             {
@@ -355,25 +353,15 @@ public partial class FilterService
     private static Type _ParseStringToType(string strType)
     {
         if (strType == "string")
-        {
             return typeof(string);
-        }
         else if (strType == "int")
-        {
             return typeof(int);
-        }
         else if (strType == "decimal")
-        {
             return typeof(decimal);
-        }
         else if (strType == "datetime")
-        {
             return typeof(DateTime);
-        }
         else if (!string.IsNullOrEmpty(strType))
-        {
             throw new Exception($"Value Type `{strType}` is not supported yet.");
-        }
 
         return null;
     }
@@ -385,16 +373,16 @@ public partial class FilterService
         if (type == typeof(string)) return v;
 
         if (type == typeof(DateTime)) return DateTime.Parse(v);
-        //if (type == typeof(DateTime?)) return v.ParseNullableDateTime();
+        if (type == typeof(DateTime?)) return v.ParseNullableDateTime();
 
         if (type == typeof(int)) return int.Parse(v);
-        //if (type == typeof(int?)) return v.ParseNullableInt();
+        if (type == typeof(int?)) return v.ParseNullableInt();
 
         if (type == typeof(decimal)) return decimal.Parse(v);
-        //if (type == typeof(decimal?)) return v.ParseNullableDecimal();
+        if (type == typeof(decimal?)) return v.ParseNullableDecimal();
 
-        //if (type == typeof(bool)) return filterSetting.IsNot ? !bool.Parse(v) : bool.Parse(v);
-        //if (type == typeof(bool?)) return filterSetting.IsNot ? !v.ParseNullableBool() : v.ParseNullableBool();
+        if (type == typeof(bool)) return bool.Parse(v);
+        if (type == typeof(bool?)) return v.ParseNullableBool();
 
         throw new Exception($"Convert value `{value}` to type `{type}` is not supported yet.");
     }
@@ -404,23 +392,24 @@ public partial class FilterService
     #region ==================== 5. Add Condition To Group ====================
     private void _AddExpressionToGroup()
     {
-        var groupPattern = @"\[group\d\]";
-        var conditionPattern = @"\[condition\d\]";
-
         foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
         {
-            var groupList = Regex.Matches(group.Value, groupPattern);
-            var conditionList = Regex.Matches(group.Value, conditionPattern);
+            var groupList = Regex.Matches(group.Value, Constants.PatternString.Group);
+            var conditionList = Regex.Matches(group.Value, Constants.PatternString.Condition);
 
             if (conditionList.Any() && groupList.Any())
             {
                 group.Expression = _GetExpressionOfConditionAndGroup(group);
+                continue;
             }
-            else if (conditionList.Any())
+
+            if (conditionList.Any())
             {
                 group.Expression = _GetExpressionOfCondition(group);
+                continue;
             }
-            else if (groupList.Any())
+            
+            if (groupList.Any())
             {
                 group.Expression = _GetExpressionOfGroup(group);
             }
@@ -430,31 +419,11 @@ public partial class FilterService
     private Expression _GetExpressionOfConditionAndGroup(GroupFilter group)
     {
         Expression result = null;
-
-        var groupPattern = @"\[group\d\]";
-        var conditionPattern = @"\[condition\d\]";
-
         var valueString = group.Value;
 
-        var mapGroupFilters = Regex.Matches(group.Value, groupPattern)
-            .Select(x => x as Match)
-            .Select(x => new ExpressionMapFilter()
-            {
-                Key = x.Value,
-                StartIndex = x.Index,
-                EndIndex = (x.Index + x.Value.Length - 1),
-            })
-            .ToList();
+        var mapGroupFilters = _GetRegexMatches(group.Value, Constants.PatternString.Group);
 
-        var mapConditionFilters = Regex.Matches(group.Value, conditionPattern)
-            .Select(x => x as Match)
-            .Select(x => new ExpressionMapFilter()
-            {
-                Key = x.Value,
-                StartIndex = x.Index,
-                EndIndex = (x.Index + x.Value.Length - 1),
-            })
-            .ToList();
+        var mapConditionFilters = _GetRegexMatches(group.Value, Constants.PatternString.Condition);
 
         if (mapGroupFilters.IsNullOrEmpty() || mapConditionFilters.IsNullOrEmpty())
         {
@@ -468,25 +437,7 @@ public partial class FilterService
 
             var tempExp = _GetExpressionOfGroup(groupFilter);
 
-            var index = valueString.IndexOf(item.Key);
-
-            if (index - 1 >= 0)
-            {
-                if (valueString[index - 1].ToString().Equals("!"))
-                {
-                    tempExp = Expression.Not(tempExp);
-                }
-                else if (valueString[index - 1].ToString().Equals("|"))
-                {
-                    tempExp = result == null ? tempExp : Expression.Or(result, tempExp);
-                }
-                else if (valueString[index - 1].ToString().Equals("&"))
-                {
-                    tempExp = result == null ? tempExp : Expression.And(result, tempExp);
-                }
-            }
-
-            result = tempExp;
+            result = _AddExpressionByGroupOrCondition(valueString, item.Key, result, tempExp);
         }
 
         //Get condition 
@@ -496,28 +447,48 @@ public partial class FilterService
 
             var tempExp = conditionFilter.Expression;
 
-            var index = valueString.IndexOf(item.Key);
-
-            if (index - 1 >= 0)
-            {
-                if (valueString[index - 1].ToString().Equals("!"))
-                {
-                    tempExp = Expression.Not(tempExp);
-                }
-                else if (valueString[index - 1].ToString().Equals("|"))
-                {
-                    tempExp = result == null ? tempExp : Expression.Or(result, tempExp);
-                }
-                else if (valueString[index - 1].ToString().Equals("&"))
-                {
-                    tempExp = result == null ? tempExp : Expression.And(result, tempExp);
-                }
-            }
-
-            result = tempExp;
+            result = _AddExpressionByGroupOrCondition(valueString, item.Key, result, tempExp);
         }
 
         return result;
+    }
+
+    private List<ExpressionMapFilter> _GetRegexMatches(string value, string pattern)
+    {
+        var result = Regex.Matches(value, pattern)
+           .Select(x => x as Match)
+           .Select(x => new ExpressionMapFilter()
+           {
+               Key = x.Value,
+               StartIndex = x.Index,
+               EndIndex = (x.Index + x.Value.Length - 1),
+           })
+           .ToList();
+
+        return result;
+    }
+
+    private Expression _AddExpressionByGroupOrCondition(string value, string key, Expression result, Expression newExp)
+    {
+        var index = value.IndexOf(key);
+
+        if (index - 1 >= 0)
+        {
+            if (value[index - 1].ToString().Equals("!"))
+            {
+                newExp = Expression.Not(newExp);
+            }
+            else if (value[index - 1].ToString().Equals("|"))
+            {
+                newExp = result == null ? newExp : Expression.Or(result, newExp);
+            }
+            else if (value[index - 1].ToString().Equals("&"))
+            {
+                newExp = result == null ? newExp : Expression.And(result, newExp);
+            }
+        }
+
+        return newExp;
     }
 
     private Expression _GetExpressionOfGroup(GroupFilter group)
