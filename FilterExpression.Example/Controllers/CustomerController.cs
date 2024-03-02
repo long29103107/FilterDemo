@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using FilterExpression.Extension;
+using FilterExpression.Extensions;
 
 namespace FilterExpression.Example.Controllers;
 [Route("api/[controller]")]
