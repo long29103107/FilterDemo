@@ -124,16 +124,7 @@ public partial class FilterService
 
                 if (string.IsNullOrEmpty(tempFeFilter)) continue;
 
-                if (!_conditionFilters.Any(x => x.Value.Equals(tempFeFilter)))
-                {
-                    var key = $"[condition{_key++}]";
-                    _conditionFilters.Add(new ConditionFilter
-                    {
-                        Index = _key,
-                        Key = key,
-                        Value = tempFeFilter
-                    });
-                }
+                AddConditionFilter(tempFeFilter);
 
                 indexOfSharp += length + 1;
             }
@@ -143,6 +134,21 @@ public partial class FilterService
         {
             fe = fe.Replace(filter.Value, filter.Key);
         }
+    }
+
+    private void AddConditionFilter(string tempFeFilter)
+    {
+        if (!_conditionFilters.Any(x => x.Value.Equals(tempFeFilter)))
+        {
+            var key = $"[condition{_key++}]";
+            _conditionFilters.Add(new ConditionFilter
+            {
+                Index = _key,
+                Key = key,
+                Value = tempFeFilter
+            });
+        }
+
     }
     #endregion ==================== 2. Get Condition Expression ====================
 
@@ -154,33 +160,19 @@ public partial class FilterService
         var charNeedToGroup = new List<string>() { "!", "|", "&" };
 
         if (string.IsNullOrEmpty(fe)) return;
-        
-        if(Regex.Matches(fe, Constants.Pattern.ConditionNot).Any())
+
+        if (Regex.Matches(fe, Constants.Pattern.ConditionNot).Any())
         {
             var groups = Regex.Matches(fe, Constants.Pattern.ConditionNot).Select(x => x as Match).ToList();
 
             foreach (var group in groups)
             {
-                var key = $"[group{_key}]";
-                _groupFilters.Add(new GroupFilter
-                {
-                    Index = _key,
-                    Key = key,
-                    Value = group.Value
-                });
-
-                _key++;
+                AddGroupFilter(group.Value);
             }
 
-            foreach (var groupFilter in _groupFilters)
-            {
-                if (fe.Contains(groupFilter.Value))
-                {
-                    fe = fe.Replace(groupFilter.Value, groupFilter.Key);
-                }
-            }
+            ReplaceGroupByGroupKey(ref fe);
         }
-        else if(fe.Any(c => c.ToString().Equals("(")))
+        else if (fe.Any(c => c.ToString().Equals("(")))
         {
             for (var i = 0; i < fe.Length; i++)
             {
@@ -201,15 +193,7 @@ public partial class FilterService
 
                     if (!_groupFilters.Any(x => x.Value.Equals(tempFeFilter)))
                     {
-                        var key = $"[group{_key}]";
-                        _groupFilters.Add(new GroupFilter
-                        {
-                            Index = _key,
-                            Key = key,
-                            Value = tempFeFilter
-                        });
-
-                        _key++;
+                        AddGroupFilter(fe);
                     }
 
                     indexOfSharp += length + 1;
@@ -220,13 +204,7 @@ public partial class FilterService
                 }
             }
 
-            foreach (var groupFilter in _groupFilters)
-            {
-                if (fe.Contains(groupFilter.Value))
-                {
-                    fe = fe.Replace(groupFilter.Value, groupFilter.Key);
-                }
-            }
+            ReplaceGroupByGroupKey(ref fe);
         }
         else if (Regex.Matches(fe, Constants.Pattern.GroupNot).Any())
         {
@@ -234,34 +212,16 @@ public partial class FilterService
 
             foreach (var group in groups)
             {
-                var key = $"[group{_key}]";
-                _groupFilters.Add(new GroupFilter
-                {
-                    Index = _key,
-                    Key = key,
-                    Value = group.Value
-                });
+                AddGroupFilter(fe);
 
                 _key++;
             }
 
-            foreach (var groupFilter in _groupFilters)
-            {
-                if (fe.Contains(groupFilter.Value))
-                {
-                    fe = fe.Replace(groupFilter.Value, groupFilter.Key);
-                }
-            }
+            ReplaceGroupByGroupKey(ref fe);
         }
         else if (fe.Any(c => c.ToString().Equals("&")) || fe.Any(c => c.ToString().Equals("|")))
         {
-            var key = $"[group{_key}]";
-            _groupFilters.Add(new GroupFilter
-            {
-                Index = _key,
-                Key = key,
-                Value = fe
-            });
+            AddGroupFilter(fe);
 
             fe = string.Empty;
         }
@@ -272,6 +232,31 @@ public partial class FilterService
 
         _GroupFilterExpression(ref fe);
     }
+
+    private void AddGroupFilter(string fe)
+    {
+        var key = $"[group{_key}]";
+        _groupFilters.Add(new GroupFilter
+        {
+            Index = _key,
+            Key = key,
+            Value = fe
+        });
+
+        _key++;
+    }
+
+    private void ReplaceGroupByGroupKey(ref string fe)
+    {
+        foreach (var groupFilter in _groupFilters)
+        {
+            if (fe.Contains(groupFilter.Value))
+            {
+                fe = fe.Replace(groupFilter.Value, groupFilter.Key);
+            }
+        }
+    }
+
     #endregion ==================== 3. Get Group Expression ====================
 
     #region ==================== 4. Parse Filter Expression ====================
@@ -288,9 +273,9 @@ public partial class FilterService
                 throw new Exception($"Request `{item.Value}` invalid");
             }
 
-            string firstValue = splitStr[0] ?? string.Empty;
-            string secondValue = splitStr[1] ?? string.Empty;
-            string thirdValue = splitStr[2] ?? string.Empty;
+            string firstValue = splitStr[0] ?? string.Empty; // This is property name
+            string secondValue = splitStr[1] ?? string.Empty; // This is operator
+            string thirdValue = splitStr[2] ?? string.Empty; //This is value
 
             //TODO: valid name field in white list
             PropertyInfo? prop = type.GetProperty(firstValue);
@@ -321,6 +306,7 @@ public partial class FilterService
 
             thirdValue = thirdValue.Replace("`", "").Trim();
 
+            //Get expression
             Expression? body = null;
 
             MemberExpression me = Expression.Property(pe, firstValue);
@@ -486,21 +472,6 @@ public partial class FilterService
         return result;
     }
 
-    private List<ExpressionMapFilter> _GetRegexMatches(string value, string pattern)
-    {
-        var result = Regex.Matches(value, pattern)
-           .Select(x => x as Match)
-           .Select(x => new ExpressionMapFilter()
-           {
-               Key = x.Value,
-               StartIndex = x.Index,
-               EndIndex = (x.Index + x.Value.Length - 1),
-           })
-           .ToList();
-
-        return result;
-    }
-
     private Expression _AddExpressionByGroupOrCondition(string value, string key, Expression currentExp, Expression newExp)
     {
         var index = value.IndexOf(key);
@@ -551,19 +522,21 @@ public partial class FilterService
             }
             else
             {
-                var index = valueString.IndexOf(mapFilter.Key);
-
                 var compareOperator = valueString[mapFilter.StartIndex - 1];
 
                 if (compareOperator.ToString().Equals(Constants.Operator.Not))
                 {
                     result = Expression.Not(result);
+                    continue;
                 }
-                else if (compareOperator.ToString().Equals(Constants.Operator.And))
+
+                if (compareOperator.ToString().Equals(Constants.Operator.And))
                 {
                     result = Expression.And(result, fieldFilter.Expression);
+                    continue;
                 }
-                else if (compareOperator.ToString().Equals(Constants.Operator.Or))
+                
+                if (compareOperator.ToString().Equals(Constants.Operator.Or))
                 {
                     result = Expression.Or(result, fieldFilter.Expression);
                 }
@@ -599,7 +572,7 @@ public partial class FilterService
             {
                 result = fieldFilter.Expression;
             }
-
+            
             if (mapFilter.StartIndex - 1 >= 0)
             {
                 var compareOperator = valueString[mapFilter.StartIndex - 1];
@@ -607,21 +580,38 @@ public partial class FilterService
                 if (compareOperator.ToString().Equals(Constants.Operator.Not))
                 {
                     result = Expression.Not(result);
+                    continue;
                 }
-                else if (compareOperator.ToString().Equals(Constants.Operator.And))
+
+                if (compareOperator.ToString().Equals(Constants.Operator.And))
                 {
                     result = Expression.And(result, fieldFilter.Expression);
+                    continue;
                 }
-                else if (compareOperator.ToString().Equals(Constants.Operator.Or))
+
+                if (compareOperator.ToString().Equals(Constants.Operator.Or))
                 {
                     result = Expression.Or(result, fieldFilter.Expression);
                 }
             }
-
-           
         }
 
         return result;
     }
+    private List<ExpressionMapFilter> _GetRegexMatches(string value, string pattern)
+    {
+        var result = Regex.Matches(value, pattern)
+           .Select(x => x as Match)
+           .Select(x => new ExpressionMapFilter()
+           {
+               Key = x.Value,
+               StartIndex = x.Index,
+               EndIndex = (x.Index + x.Value.Length - 1),
+           })
+           .ToList();
+
+        return result;
+    }
+
     #endregion ==================== 5. Add Condition To Group ====================
 }
