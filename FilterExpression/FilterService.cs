@@ -298,7 +298,7 @@ public partial class FilterService
                 throw new Exception($"Operator must be one of the keywords `{string.Join(", ", _whiteListOperatior)}` ");
             }
 
-            //TODO: get value value type
+            //Get value in ``
             if (!thirdValue.StartsWith("`") || !thirdValue.EndsWith("`"))
             {
                 throw new Exception("Value of filter must in ``");
@@ -371,7 +371,7 @@ public partial class FilterService
 
     private static Type _ParseStringToType(string strType)
     {
-        if (strType == "string")
+        if (strType == "stringh")
             return typeof(string);
         else if (strType == "int")
             return typeof(int);
