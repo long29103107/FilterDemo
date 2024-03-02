@@ -11,7 +11,7 @@ public static class ListFilterExtension
     private static FilterService _filterService = new FilterService();
     
     /// <summary>
-    /// Check list is null or empty
+    /// Filter in list
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="list"></param>

@@ -9,6 +9,7 @@ public class CustomerController : ControllerBase
     [HttpGet]
     public List<Customer> Get()
     {
+        var fe = "!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))|(Name eq `3`)";
         var list = new List<Customer>
         {
             new Customer{ Name = "Long", Age = 25, Id = 1, BirthDay = new DateTime(1997, 9, 15)  },
@@ -19,7 +20,8 @@ public class CustomerController : ControllerBase
         var filteredList = new List<Customer>();
         try
         {
-            filteredList = list.Filter("!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))|(Name eq `3`)");
+            filteredList = list.AsQueryable().Filter(fe).ToList(); //Filter in queryable
+            filteredList = list.Filter(fe); //Filter in list
             //filteredList = list.Filter("!(Id eq `1`)&!(Id eq `3`)");
             //filteredList = list.Filter("(!(Id eq `1`)&!(Id eq `3`))");
         }
