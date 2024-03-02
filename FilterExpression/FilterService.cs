@@ -65,7 +65,7 @@ public partial class FilterService
     {
         List<string> feString = fe.Select(x => x.ToString()).ToList();
 
-        var invalidChar = feString.Where(x => !Regex.IsMatch(x.Trim(), Constants.PatternString.ValidCharacter)
+        var invalidChar = feString.Where(x => !Regex.IsMatch(x.Trim(), Constants.Pattern.ValidCharacter)
                 && !_validChar.Contains(x.Trim()))
             .Distinct()
             .ToList();
@@ -107,12 +107,16 @@ public partial class FilterService
             if (character.Equals("("))
             {
                 indexOfSharp = i;
+                continue;
             }
-            else if (character.Equals("!") || character.Equals("|") || character.Equals("&"))
+            
+            if (character.Equals("!") || character.Equals("|") || character.Equals("&"))
             {
                 indexOfSharp++;
+                continue;
             }
-            else if (character.Equals(")"))
+            
+            if (character.Equals(")"))
             {
                 int length = (i - indexOfSharp) + 1;
                 string tempFeFilter = fe.Substring(indexOfSharp, length);
@@ -198,9 +202,9 @@ public partial class FilterService
                 }
             }
         }
-        else if (Regex.Matches(fe, Constants.PatternString.GroupNot).Any())
+        else if (Regex.Matches(fe, Constants.Pattern.GroupNot).Any())
         {
-            var groups = Regex.Matches(fe, Constants.PatternString.GroupNot).Select(x => x as Match).ToList();
+            var groups = Regex.Matches(fe, Constants.Pattern.GroupNot).Select(x => x as Match).ToList();
 
             foreach (var group in groups)
             {
@@ -393,8 +397,8 @@ public partial class FilterService
     {
         foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
         {
-            var groupList = Regex.Matches(group.Value, Constants.PatternString.Group);
-            var conditionList = Regex.Matches(group.Value, Constants.PatternString.Condition);
+            var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
+            var conditionList = Regex.Matches(group.Value, Constants.Pattern.Condition);
 
             if (conditionList.Any() && groupList.Any())
             {
@@ -420,9 +424,9 @@ public partial class FilterService
         Expression result = null;
         var valueString = group.Value;
 
-        var mapGroupFilters = _GetRegexMatches(group.Value, Constants.PatternString.Group);
+        var mapGroupFilters = _GetRegexMatches(group.Value, Constants.Pattern.Group);
 
-        var mapConditionFilters = _GetRegexMatches(group.Value, Constants.PatternString.Condition);
+        var mapConditionFilters = _GetRegexMatches(group.Value, Constants.Pattern.Condition);
 
         if (mapGroupFilters.IsNullOrEmpty() || mapConditionFilters.IsNullOrEmpty())
         {
@@ -467,46 +471,35 @@ public partial class FilterService
         return result;
     }
 
-    private Expression _AddExpressionByGroupOrCondition(string value, string key, Expression result, Expression newExp)
+    private Expression _AddExpressionByGroupOrCondition(string value, string key, Expression currentExp, Expression newExp)
     {
         var index = value.IndexOf(key);
 
-        if (index - 1 >= 0)
-        {
-            if (value[index - 1].ToString().Equals("!"))
-            {
-                newExp = Expression.Not(newExp);
-            }
-            else if (value[index - 1].ToString().Equals("|"))
-            {
-                newExp = result == null ? newExp : Expression.Or(result, newExp);
-            }
-            else if (value[index - 1].ToString().Equals("&"))
-            {
-                newExp = result == null ? newExp : Expression.And(result, newExp);
-            }
-        }
+        if (index - 1 < 0) 
+            return newExp;
 
-        return newExp;
+        if (value[index - 1].ToString().Equals("!"))
+            return Expression.Not(newExp);
+
+        if(currentExp == null)
+            return null;
+
+        if (value[index - 1].ToString().Equals("|"))
+            return Expression.Or(currentExp, newExp);
+            
+        if (value[index - 1].ToString().Equals("&"))
+            return Expression.And(currentExp, newExp);
+
+        return null;
+
     }
 
     private Expression _GetExpressionOfGroup(GroupFilter group)
     {
         Expression result = null;
-
-        var groupPattern = @"\[group\d\]";
-
         var valueString = group.Value;
 
-        var mapFilters = Regex.Matches(group.Value, groupPattern)
-            .Select(x => x as Match)
-            .Select(x => new ExpressionMapFilter()
-            {
-                Key = x.Value,
-                StartIndex = x.Index,
-                EndIndex = (x.Index + x.Value.Length - 1),
-            })
-            .ToList();
+        var mapFilters = _GetRegexMatches(group.Value, Constants.Pattern.Group);
 
         if (mapFilters.IsNullOrEmpty())
         {
@@ -539,19 +532,9 @@ public partial class FilterService
     {
         Expression result = null;
 
-        var conditionPattern = @"\[condition\d\]";
-
         var valueString = group.Value;
 
-        var mapFilters = Regex.Matches(group.Value, conditionPattern)
-            .Select(x => x as Match)
-            .Select(x => new ExpressionMapFilter()
-            {
-                Key = x.Value,
-                StartIndex = x.Index,
-                EndIndex = (x.Index + x.Value.Length - 1),
-            })
-            .ToList();
+        var mapFilters = _GetRegexMatches(group.Value, Constants.Pattern.Condition);
 
         if (mapFilters.IsNullOrEmpty())
         {

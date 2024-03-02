@@ -1,5 +1,5 @@
 ﻿namespace FilterExpression.Constants;
-public static class PatternString
+public static class Pattern
 {
     public const string ValidCharacter = "^[A-Za-z0-9_.]+$";
     public const string GroupNot = @"\!\[group\d\]";
