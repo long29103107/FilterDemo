@@ -55,6 +55,7 @@ public partial class FilterService
             _key = 0;
             _groupFilters.Clear();
             _conditionFilters.Clear();
+            _fieldFilters.Clear();
         }
 
         return result;
@@ -153,8 +154,33 @@ public partial class FilterService
         var charNeedToGroup = new List<string>() { "!", "|", "&" };
 
         if (string.IsNullOrEmpty(fe)) return;
+        
+        if(Regex.Matches(fe, Constants.Pattern.ConditionNot).Any())
+        {
+            var groups = Regex.Matches(fe, Constants.Pattern.ConditionNot).Select(x => x as Match).ToList();
 
-        if (fe.Any(c => c.ToString().Equals("(")))
+            foreach (var group in groups)
+            {
+                var key = $"[group{_key}]";
+                _groupFilters.Add(new GroupFilter
+                {
+                    Index = _key,
+                    Key = key,
+                    Value = group.Value
+                });
+
+                _key++;
+            }
+
+            foreach (var groupFilter in _groupFilters)
+            {
+                if (fe.Contains(groupFilter.Value))
+                {
+                    fe = fe.Replace(groupFilter.Value, groupFilter.Key);
+                }
+            }
+        }
+        else if(fe.Any(c => c.ToString().Equals("(")))
         {
             for (var i = 0; i < fe.Length; i++)
             {
@@ -237,6 +263,10 @@ public partial class FilterService
                 Value = fe
             });
 
+            fe = string.Empty;
+        }
+        else
+        {
             fe = string.Empty;
         }
 
@@ -515,13 +545,26 @@ public partial class FilterService
 
             var fieldFilter = _groupFilters.FirstOrDefault(x => x.Key == mapFilter.Key);
 
-            result = fieldFilter.Expression;
+            if(result == null)
+            {
+                result = fieldFilter.Expression;
+            }
 
             var index = valueString.IndexOf(mapFilter.Key);
 
-            if (index - 1 >= 0 && valueString[index - 1].ToString().Equals("!"))
+            var compareOperator = valueString[mapFilter.StartIndex - 1];
+
+            if (compareOperator.ToString().Equals(Constants.Operator.Not))
             {
                 result = Expression.Not(result);
+            }
+            else if (compareOperator.ToString().Equals(Constants.Operator.And))
+            {
+                result = Expression.And(result, fieldFilter.Expression);
+            }
+            else if (compareOperator.ToString().Equals(Constants.Operator.Or))
+            {
+                result = Expression.Or(result, fieldFilter.Expression);
             }
         }
 
@@ -554,22 +597,26 @@ public partial class FilterService
             {
                 result = fieldFilter.Expression;
             }
-            else
-            {
-                if (mapFilter.StartIndex - 1 > 0)
-                {
-                    var compareOperator = valueString[mapFilter.StartIndex - 1];
 
-                    if (compareOperator.ToString().Equals(Constants.Operator.And))
-                    {
-                        result = Expression.And(result, fieldFilter.Expression);
-                    }
-                    else if (compareOperator.ToString().Equals(Constants.Operator.Or))
-                    {
-                        result = Expression.Or(result, fieldFilter.Expression);
-                    }
+            if (mapFilter.StartIndex - 1 >= 0)
+            {
+                var compareOperator = valueString[mapFilter.StartIndex - 1];
+
+                if (compareOperator.ToString().Equals(Constants.Operator.Not))
+                {
+                    result = Expression.Not(result);
+                }
+                else if (compareOperator.ToString().Equals(Constants.Operator.And))
+                {
+                    result = Expression.And(result, fieldFilter.Expression);
+                }
+                else if (compareOperator.ToString().Equals(Constants.Operator.Or))
+                {
+                    result = Expression.Or(result, fieldFilter.Expression);
                 }
             }
+
+           
         }
 
         return result;
