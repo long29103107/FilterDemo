@@ -13,7 +13,7 @@ namespace FilterExpression.Directive
         {
             get
             {
-                return "ne";
+                return Constants.ComparisonOperator.NotEqual;
             }
         }
 

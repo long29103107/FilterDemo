@@ -13,7 +13,7 @@ namespace FilterExpression.Directive.Implement
         {
             get
             {
-                return "startswith";
+                return Constants.ComparisonOperator.StartsWith;
             }
         }
 

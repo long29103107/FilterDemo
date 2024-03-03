@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 
 namespace FilterExpression.Directive.Implement
 {
-    internal class InArrayDirective : IFilterDirective
+    internal class InDirective : IFilterDirective
     {
         public string FilterSyntax
         {
             get
             {
-                return "in";
+                return Constants.ComparisonOperator.In;
             }
         }
 

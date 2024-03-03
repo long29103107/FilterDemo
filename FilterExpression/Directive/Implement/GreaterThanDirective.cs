@@ -13,7 +13,7 @@ namespace FilterExpression.Directive
         {
             get
             {
-                return "gt";
+                return Constants.ComparisonOperator.GreaterThan;
             }
         }
 

@@ -7,6 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FilterExpression.Extensions;
+using FilterExpression.Constants;
 
 namespace FilterExpression;
 
@@ -313,6 +314,7 @@ public partial class FilterService
 
             var typeProperty = _ParseStringToType(valueTypeString);
 
+            //TODO: cover case in 
             ConstantExpression constant = Expression.Constant(_ParseValue(thirdValue, typeProperty), typeProperty);
 
             var expressionName = _GetGenerateExpression(me, constant, secondValue ?? string.Empty);
@@ -323,9 +325,9 @@ public partial class FilterService
             }
             else
             {
-                if (secondValue == Constants.Operator.And)
+                if (secondValue == Constants.RelationalOperator.And)
                     body = Expression.And(body, expressionName);
-                else if (secondValue == Constants.Operator.Or)
+                else if (secondValue == Constants.RelationalOperator.Or)
                     body = Expression.Or(body, expressionName);
             }
 
@@ -345,26 +347,19 @@ public partial class FilterService
 
     public static Expression _GetGenerateExpression(MemberExpression me, ConstantExpression constant, string strOperator)
     {
-        IFilterDirective filterDirective = null;
-
-        if (strOperator == "contains")
-            filterDirective = new ContainsDirective();
-        else if (strOperator == "eq")
-            filterDirective = new EqualDirective();
-        else if (strOperator == "gt")
-            filterDirective = new GreaterThanDirective();
-        else if (strOperator == "ge")
-            filterDirective = new GreaterThanOrEqualDirective();
-        else if (strOperator == "in")
-            filterDirective = new InArrayDirective();
-        else if (strOperator == "lt")
-            filterDirective = new LessThanDirective();
-        else if (strOperator == "le")
-            filterDirective = new LessThanOrEqualDirective();
-        else if (strOperator == "ne")
-            filterDirective = new NotEqualDirective();
-        else if (strOperator == "startswith")
-            filterDirective = new StartsWithDirective();
+        IFilterDirective filterDirective = strOperator switch
+        {
+            "contains" => new ContainsDirective(),
+            "eq" => new EqualDirective(),
+            "gt" => new GreaterThanDirective(),
+            "ge" => new GreaterThanOrEqualDirective(),
+            "in" => new InDirective(),
+            "lt" => new LessThanDirective(),
+            "le" => new LessThanOrEqualDirective(),
+            "ne" => new NotEqualDirective(),
+            "startswith" => new StartsWithDirective(),
+            _ => throw new NotImplementedException(),
+        };
 
         return filterDirective.GenerateExpression(ref me, constant);
     }
@@ -373,13 +368,17 @@ public partial class FilterService
     {
         if (strType == "string")
             return typeof(string);
-        else if (strType == "int")
+
+        if (strType == "int")
             return typeof(int);
-        else if (strType == "decimal")
+
+        if (strType == "decimal")
             return typeof(decimal);
-        else if (strType == "datetime")
+
+        if (strType == "datetime")
             return typeof(DateTime);
-        else if (!string.IsNullOrEmpty(strType))
+
+        if (!string.IsNullOrEmpty(strType))
             throw new Exception($"Value Type `{strType}` is not supported yet.");
 
         return null;
@@ -524,19 +523,19 @@ public partial class FilterService
             {
                 var compareOperator = valueString[mapFilter.StartIndex - 1];
 
-                if (compareOperator.ToString().Equals(Constants.Operator.Not))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.Not))
                 {
                     result = Expression.Not(result);
                     continue;
                 }
 
-                if (compareOperator.ToString().Equals(Constants.Operator.And))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.And))
                 {
                     result = Expression.And(result, fieldFilter.Expression);
                     continue;
                 }
                 
-                if (compareOperator.ToString().Equals(Constants.Operator.Or))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.Or))
                 {
                     result = Expression.Or(result, fieldFilter.Expression);
                 }
@@ -577,19 +576,19 @@ public partial class FilterService
             {
                 var compareOperator = valueString[mapFilter.StartIndex - 1];
 
-                if (compareOperator.ToString().Equals(Constants.Operator.Not))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.Not))
                 {
                     result = Expression.Not(result);
                     continue;
                 }
 
-                if (compareOperator.ToString().Equals(Constants.Operator.And))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.And))
                 {
                     result = Expression.And(result, fieldFilter.Expression);
                     continue;
                 }
 
-                if (compareOperator.ToString().Equals(Constants.Operator.Or))
+                if (compareOperator.ToString().Equals(Constants.RelationalOperator.Or))
                 {
                     result = Expression.Or(result, fieldFilter.Expression);
                 }

@@ -9,7 +9,8 @@ public class CustomerController : ControllerBase
     [HttpGet]
     public List<Customer> Get()
     {
-        var fe = "!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))|(Name eq `3`)";
+        //var fe = "!((Id eq `1`)|(Id eq `3`))|!((Name eq `Long`)&(Id eq `1`))|(Name eq `3`)";
+        var fe = "(Id in `1,2`)";
         var list = new List<Customer>
         {
             new Customer{ Name = "Long", Age = 25, Id = 1, BirthDay = new DateTime(1997, 9, 15)  },

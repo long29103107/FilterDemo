@@ -13,7 +13,7 @@ namespace FilterExpression.Directive.Implement
         {
             get
             {
-                return "ge";
+                return Constants.ComparisonOperator.GreaterThanAndEqual;
             }
         }
 

@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Linq.Expressions;
+using FilterExpression.Constants;
 
 namespace FilterExpression.Directive.Implement
 {
@@ -13,7 +9,7 @@ namespace FilterExpression.Directive.Implement
         {
             get
             {
-                return "contains";
+                return Constants.ComparisonOperator.Contains;
             }
         }
 
