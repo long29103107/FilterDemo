@@ -371,7 +371,7 @@ public partial class FilterService
 
     private static Type _ParseStringToType(string strType)
     {
-        if (strType == "stringh")
+        if (strType == "string")
             return typeof(string);
         else if (strType == "int")
             return typeof(int);
@@ -598,6 +598,7 @@ public partial class FilterService
 
         return result;
     }
+
     private List<ExpressionMapFilter> _GetRegexMatches(string value, string pattern)
     {
         var result = Regex.Matches(value, pattern)

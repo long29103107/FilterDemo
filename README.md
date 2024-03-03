@@ -17,7 +17,7 @@ var list = new List<Customer>
 var filterService = new FilterService();
 var filter = filterService.Filter<Customer>("(BirthDay le `1997-9-15`)");
 
-var filteredList = list.Where(filter.Compile()).ToArray();
+var filteredList = list.Where(filter.Compile()).ToList();
 
 // Another way
 var filteredList = list.Filter("(BirthDay le `1997-9-15`)");
