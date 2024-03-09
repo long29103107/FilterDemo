@@ -322,7 +322,6 @@ public partial class FilterService
             Expression? expressionName = null;
 
             MemberExpression me = Expression.Property(pe, firstValue);
-
             var typeProperty = _ParseStringToType(valueTypeString);
 
             //TODO: Cover case in  
@@ -342,6 +341,14 @@ public partial class FilterService
                     var method = typeof(List<int?>).GetMethod(nameof(List<int?>.Contains), new[] { typeof(int?) });
 
                     expressionName = Expression.Call(Expression.Constant(thirdValue.GetNullableIntList(), valueType),
+                           method ?? throw new InvalidOperationException(), me);
+                }
+                else if (valueTypeString == "string")
+                {
+                    var valueType = typeof(List<string>);
+                    var method = typeof(List<string>).GetMethod(nameof(List<string>.Contains), new[] { typeof(string) });
+
+                    expressionName = Expression.Call(Expression.Constant(thirdValue.GetStringList(), valueType),
                            method ?? throw new InvalidOperationException(), me);
                 }
             }
