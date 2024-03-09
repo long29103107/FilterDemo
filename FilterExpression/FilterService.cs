@@ -8,6 +8,10 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using FilterExpression.Extensions;
 using FilterExpression.Constants;
+using Newtonsoft.Json.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Net.WebSockets;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace FilterExpression;
 
@@ -226,6 +230,12 @@ public partial class FilterService
 
             fe = string.Empty;
         }
+        else if(Regex.Matches(fe, Constants.Pattern.Condition).Any())
+        {
+            AddGroupFilter(fe);
+
+            fe = string.Empty;
+        }
         else
         {
             fe = string.Empty;
@@ -309,15 +319,38 @@ public partial class FilterService
 
             //Get expression
             Expression? body = null;
+            Expression? expressionName = null;
 
             MemberExpression me = Expression.Property(pe, firstValue);
 
             var typeProperty = _ParseStringToType(valueTypeString);
 
-            //TODO: cover case in 
-            ConstantExpression constant = Expression.Constant(_ParseValue(thirdValue, typeProperty), typeProperty);
+            //TODO: Cover case in  
+            if(secondValue.Equals(ComparisonOperator.In))
+            {
+                if (valueTypeString == "int")
+                {
+                    var valueType = typeof(List<int>);
+                    var method = typeof(List<int>).GetMethod(nameof(List<int>.Contains), new[] { typeof(int) });
 
-            var expressionName = _GetGenerateExpression(me, constant, secondValue ?? string.Empty);
+                    expressionName = Expression.Call(Expression.Constant(thirdValue.GetIntList(0), valueType),
+                           method ?? throw new InvalidOperationException(), me);
+                }
+                else if (valueTypeString == "int?")
+                {
+                    var valueType = typeof(List<int?>);
+                    var method = typeof(List<int?>).GetMethod(nameof(List<int?>.Contains), new[] { typeof(int?) });
+
+                    expressionName = Expression.Call(Expression.Constant(thirdValue.GetNullableIntList(), valueType),
+                           method ?? throw new InvalidOperationException(), me);
+                }
+            }
+            else
+            {
+                ConstantExpression constant = Expression.Constant(_ParseValue(thirdValue, typeProperty), typeProperty);
+
+                expressionName = _GetGenerateExpression(me, constant, secondValue ?? string.Empty);
+            }
 
             if (body == null || string.IsNullOrEmpty(secondValue))
             {
@@ -410,27 +443,32 @@ public partial class FilterService
     #region ==================== 5. Add Condition To Group ====================
     private void _AddExpressionToGroup()
     {
-        foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
+        if(_groupFilters.Any())
         {
-            var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
-            var conditionList = Regex.Matches(group.Value, Constants.Pattern.Condition);
+            foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
+            {
+                var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
+                var conditionList = Regex.Matches(group.Value, Constants.Pattern.Condition);
 
-            if (conditionList.Any() && groupList.Any())
-            {
-                group.Expression = _GetExpressionOfConditionAndGroup(group);
-                continue;
+                if (conditionList.Any() && groupList.Any())
+                {
+                    group.Expression = _GetExpressionOfConditionAndGroup(group);
+                    continue;
+                }
+
+                if (conditionList.Any())
+                {
+                    group.Expression = _GetExpressionOfCondition(group);
+                    continue;
+                }
+
+                if (groupList.Any())
+                {
+                    group.Expression = _GetExpressionOfGroup(group);
+                }
             }
 
-            if (conditionList.Any())
-            {
-                group.Expression = _GetExpressionOfCondition(group);
-                continue;
-            }
-            
-            if (groupList.Any())
-            {
-                group.Expression = _GetExpressionOfGroup(group);
-            }
+            return;
         }
     }
 
