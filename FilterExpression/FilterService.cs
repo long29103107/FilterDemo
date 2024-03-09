@@ -127,7 +127,8 @@ public partial class FilterService
                 int length = (i - indexOfSharp) + 1;
                 string tempFeFilter = fe.Substring(indexOfSharp, length);
 
-                if (string.IsNullOrEmpty(tempFeFilter)) continue;
+                if (string.IsNullOrEmpty(tempFeFilter)) 
+                    continue;
 
                 AddConditionFilter(tempFeFilter);
 
@@ -162,13 +163,29 @@ public partial class FilterService
     {
         var indexOfSharp = 0;
 
-        var charNeedToGroup = new List<string>() { "!", "|", "&" };
+        var charNeedToGroup = new List<string>() 
+        {
+            RelationalOperator.Not,
+            RelationalOperator.And,
+            RelationalOperator.Or
+        };
 
-        if (string.IsNullOrEmpty(fe)) return;
+        if (string.IsNullOrEmpty(fe)) 
+            return;
 
+        _AddGroupFilterIfCaseMatches(ref indexOfSharp, ref fe);
+
+        _GroupFilterExpression(ref fe);
+    }
+
+    private void _AddGroupFilterIfCaseMatches(ref int indexOfSharp, ref string fe)
+    {
+        //Case 1: Add group if condition has negation operator
         if (Regex.Matches(fe, Constants.Pattern.ConditionNot).Any())
         {
-            var groups = Regex.Matches(fe, Constants.Pattern.ConditionNot).Select(x => x as Match).ToList();
+            var groups = Regex.Matches(fe, Constants.Pattern.ConditionNot)
+                .Select(x => x as Match)
+                .ToList();
 
             foreach (var group in groups)
             {
@@ -176,25 +193,32 @@ public partial class FilterService
             }
 
             ReplaceGroupByGroupKey(ref fe);
+            return;
         }
-        else if (fe.Any(c => c.ToString().Equals("(")))
+
+        //Case 2: Add group if character is `(`, it starts 1 group condition
+        if (fe.Any(c => c.ToString().Equals("(")))
         {
             for (var i = 0; i < fe.Length; i++)
             {
-                if (indexOfSharp > i) continue;
+                if (indexOfSharp > i)
+                    continue;
 
                 var character = fe[i].ToString();
 
                 if (character.Equals("("))
                 {
                     indexOfSharp = i;
+                    continue;
                 }
-                else if (character.Equals(")"))
+
+                if (character.Equals(")"))
                 {
                     int length = (i - indexOfSharp) + 1;
                     string tempFeFilter = fe.Substring(indexOfSharp, length);
 
-                    if (string.IsNullOrEmpty(tempFeFilter)) continue;
+                    if (string.IsNullOrEmpty(tempFeFilter))
+                        continue;
 
                     if (!_groupFilters.Any(x => x.Value.Equals(tempFeFilter)))
                     {
@@ -203,17 +227,19 @@ public partial class FilterService
 
                     indexOfSharp += length + 1;
                 }
-                else
-                {
-                    continue;
-                }
             }
 
             ReplaceGroupByGroupKey(ref fe);
+
+            return;
         }
-        else if (Regex.Matches(fe, Constants.Pattern.GroupNot).Any())
+
+        //Case 3: Add group if chid group has negation operator
+        if (Regex.Matches(fe, Constants.Pattern.GroupNot).Any())
         {
-            var groups = Regex.Matches(fe, Constants.Pattern.GroupNot).Select(x => x as Match).ToList();
+            var groups = Regex.Matches(fe, Constants.Pattern.GroupNot)
+                .Select(x => x as Match)
+                .ToList();
 
             foreach (var group in groups)
             {
@@ -223,30 +249,37 @@ public partial class FilterService
             }
 
             ReplaceGroupByGroupKey(ref fe);
+
+            return;
         }
-        else if (fe.Any(c => c.ToString().Equals("&")) || fe.Any(c => c.ToString().Equals("|")))
+
+        //Case 4: Add group if character is relational operator
+        if (fe.Any(c => c.ToString().Equals("&")) || fe.Any(c => c.ToString().Equals("|")))
         {
             AddGroupFilter(fe);
 
             fe = string.Empty;
+
+            return;
         }
-        else if (Regex.Matches(fe, Constants.Pattern.Condition).Any())
+
+        //Case 5: Add group if filter expression just has 1 condtion
+        if (Regex.Matches(fe, Constants.Pattern.Condition).Any())
         {
             AddGroupFilter(fe);
 
             fe = string.Empty;
-        }
-        else
-        {
-            fe = string.Empty;
-        }
 
-        _GroupFilterExpression(ref fe);
+            return;
+        }
+        //Case 6: Replace filter expression in order to returning data
+        fe = string.Empty;
     }
 
     private void AddGroupFilter(string fe)
     {
         var key = $"[group{_key}]";
+
         _groupFilters.Add(new GroupFilter
         {
             Index = _key,
@@ -277,7 +310,11 @@ public partial class FilterService
         {
             if (string.IsNullOrEmpty(item.Value)) continue;
 
-            List<string> splitStr = item.Value.Replace("(", "").Replace(")", "").Split(' ').ToList();
+            List<string> splitStr = item.Value
+                .Replace("(", "")
+                .Replace(")", "")
+                .Split(' ')
+                .ToList();
 
             if (splitStr.Count != 3)
             {
@@ -324,7 +361,6 @@ public partial class FilterService
             MemberExpression me = Expression.Property(pe, firstValue);
             var typeProperty = _ParseStringToType(valueTypeString);
 
-            //TODO: Cover case in  
             if (secondValue.Equals(ComparisonOperator.In))
             {
                 if (valueTypeString == "int")
@@ -389,15 +425,14 @@ public partial class FilterService
     {
         IFilterDirective filterDirective = strOperator switch
         {
-            "contains" => new ContainsDirective(),
-            "eq" => new EqualDirective(),
-            "gt" => new GreaterThanDirective(),
-            "ge" => new GreaterThanOrEqualDirective(),
-            "in" => new InDirective(),
-            "lt" => new LessThanDirective(),
-            "le" => new LessThanOrEqualDirective(),
-            "ne" => new NotEqualDirective(),
-            "startswith" => new StartsWithDirective(),
+            ComparisonOperator.Contains => new ContainsDirective(),
+            ComparisonOperator.Equal => new EqualDirective(),
+            ComparisonOperator.GreaterThan => new GreaterThanDirective(),
+            ComparisonOperator.GreaterThanAndEqual => new GreaterThanOrEqualDirective(),
+            ComparisonOperator.LessThan => new LessThanDirective(),
+            ComparisonOperator.LessThanAndEqual => new LessThanOrEqualDirective(),
+            ComparisonOperator.NotEqual => new NotEqualDirective(),
+            ComparisonOperator.StartsWith => new StartsWithDirective(),
             _ => throw new NotImplementedException(),
         };
 
@@ -450,7 +485,6 @@ public partial class FilterService
     #region ==================== 5. Add Condition To Group ====================
     private void _AddExpressionToGroup()
     {
-
         foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
         {
             var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
@@ -478,6 +512,7 @@ public partial class FilterService
     private Expression _GetExpressionOfConditionAndGroup(GroupFilter group)
     {
         Expression result = null;
+
         var valueString = group.Value;
 
         var mapGroupFilters = _GetRegexMatches(group.Value, Constants.Pattern.Group);
@@ -538,6 +573,7 @@ public partial class FilterService
     private Expression _GetExpressionOfGroup(GroupFilter group)
     {
         Expression result = null;
+
         var valueString = group.Value;
 
         var mapFilters = _GetRegexMatches(group.Value, Constants.Pattern.Group);

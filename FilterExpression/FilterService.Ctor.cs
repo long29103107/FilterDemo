@@ -1,9 +1,5 @@
-﻿using FilterExpression.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using FilterExpression.Constants;
+using FilterExpression.Models;
 
 namespace FilterExpression;
 public partial class FilterService
@@ -14,8 +10,16 @@ public partial class FilterService
     private List<string> _validChar = new List<string>() { 
         "!", "", " ", "`", "(", ")", "|", "%", "&", ","
     }; 
-    private List<string> _whiteListOperatior = new List<string>(){ 
-        "contains", "eq", "gt", "ge", "in", "lt", "le", "ne", "startswith" 
+    private List<string> _whiteListOperatior = new List<string>(){
+        ComparisonOperator.Contains,
+        ComparisonOperator.Equal,
+        ComparisonOperator.GreaterThan,
+        ComparisonOperator.GreaterThanAndEqual,
+        ComparisonOperator.LessThan,
+        ComparisonOperator.LessThanAndEqual,
+        ComparisonOperator.NotEqual,
+        ComparisonOperator.StartsWith,
+        ComparisonOperator.In
     };
     private int _key = 0;
 

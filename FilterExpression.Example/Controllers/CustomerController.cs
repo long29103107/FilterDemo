@@ -23,9 +23,6 @@ public class CustomerController : ControllerBase
         {
             filteredList = list.Filter<Customer>(fe).ToList(); //Filter generic
             //filteredList = list.AsQueryable().Filter(fe).ToList(); //Filter in queryable
-            //filteredList = list.Filter(fe); //Filter in list
-            //filteredList = list.Filter("!(Id eq `1`)&!(Id eq `3`)");
-            //filteredList = list.Filter("(!(Id eq `1`)&!(Id eq `3`))");
         }
         catch (Exception ex)
         {
