@@ -115,13 +115,13 @@ public partial class FilterService
                 indexOfSharp = i;
                 continue;
             }
-            
+
             if (character.Equals("!") || character.Equals("|") || character.Equals("&"))
             {
                 indexOfSharp++;
                 continue;
             }
-            
+
             if (character.Equals(")"))
             {
                 int length = (i - indexOfSharp) + 1;
@@ -230,7 +230,7 @@ public partial class FilterService
 
             fe = string.Empty;
         }
-        else if(Regex.Matches(fe, Constants.Pattern.Condition).Any())
+        else if (Regex.Matches(fe, Constants.Pattern.Condition).Any())
         {
             AddGroupFilter(fe);
 
@@ -326,7 +326,7 @@ public partial class FilterService
             var typeProperty = _ParseStringToType(valueTypeString);
 
             //TODO: Cover case in  
-            if(secondValue.Equals(ComparisonOperator.In))
+            if (secondValue.Equals(ComparisonOperator.In))
             {
                 if (valueTypeString == "int")
                 {
@@ -443,34 +443,30 @@ public partial class FilterService
     #region ==================== 5. Add Condition To Group ====================
     private void _AddExpressionToGroup()
     {
-        if(_groupFilters.Any())
+
+        foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
         {
-            foreach (var group in _groupFilters.OrderBy(x => x.Key).ToList())
+            var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
+            var conditionList = Regex.Matches(group.Value, Constants.Pattern.Condition);
+
+            if (conditionList.Any() && groupList.Any())
             {
-                var groupList = Regex.Matches(group.Value, Constants.Pattern.Group);
-                var conditionList = Regex.Matches(group.Value, Constants.Pattern.Condition);
-
-                if (conditionList.Any() && groupList.Any())
-                {
-                    group.Expression = _GetExpressionOfConditionAndGroup(group);
-                    continue;
-                }
-
-                if (conditionList.Any())
-                {
-                    group.Expression = _GetExpressionOfCondition(group);
-                    continue;
-                }
-
-                if (groupList.Any())
-                {
-                    group.Expression = _GetExpressionOfGroup(group);
-                }
+                group.Expression = _GetExpressionOfConditionAndGroup(group);
+                continue;
             }
 
-            return;
+            if (conditionList.Any())
+            {
+                group.Expression = _GetExpressionOfCondition(group);
+                continue;
+            }
+
+            if (groupList.Any())
+            {
+                group.Expression = _GetExpressionOfGroup(group);
+            }
         }
-    }
+    } 
 
     private Expression _GetExpressionOfConditionAndGroup(GroupFilter group)
     {
